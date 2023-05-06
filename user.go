@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"net"
+	"strings"
 )
 
 type User struct {
@@ -71,9 +73,32 @@ func (this *User) DoMessage(msg string) {
 			this.server.OnlineMap[newName] = this
 			this.server.mapLock.Unlock()
 			this.Name = newName
-			this.sendMsg("您已经修改成功")
+			this.sendMsg("您已经修改成功\n")
 		}
 
+	} else if len(msg) > 4 && msg[:3] == "to|" {
+		remoteName := strings.Split(msg, "|")[1]
+
+		if remoteName == "" {
+			this.sendMsg("消息格式不正确，请使用to|username|msg格式发送私聊消息")
+			return
+		}
+
+		remoteUser, ok := this.server.OnlineMap[remoteName]
+
+		if !ok {
+			this.sendMsg("该用户不存在")
+			return
+		}
+
+		remoteMsg := strings.Split(msg, "|")[2]
+
+		if remoteMsg == "" {
+			this.sendMsg("消息不能为空")
+			return
+		}
+
+		remoteUser.sendMsg("[" + this.Name + "]" + "告诉你:" + remoteMsg + "\n")
 	} else {
 		this.server.BroadCast(this, msg)
 	}
@@ -81,9 +106,10 @@ func (this *User) DoMessage(msg string) {
 
 // 监听当前User channel方法，一旦有消息，就直接发送给看
 func (this *User) ListenMessage() {
-	for {
-		msg := <-this.C
-
-		this.conn.Write([]byte(msg + "\n"))
+	for msg := range this.C {
+		_, err := this.conn.Write([]byte(msg + "\n"))
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
